@@ -1,0 +1,326 @@
+---
+title: An R Markdown document converted from "C:/Users/Mark/Documents/assignment_1.ipynb"
+output: html_document
+---
+
+# AFCS Assignment 1
+
+```{r}
+library(fpp2)
+```
+
+```{r}
+library(urca)
+library("IRdisplay")
+```
+
+```{r}
+options(repr.plot.res = 75)
+```
+
+## Exercise 1.5
+
+### A)
+
+#### wmurders
+
+Annual female murder rate (per 100,000 standard population) in the USA. 1950-2004.
+Description
+Total Murdered women, per 100 000 standard population.
+
+Format
+Annual time series of class ts.
+
+Source
+Gapminder Foundation.
+
+```{r}
+autoplot(wmurders)
+```
+
+```{r}
+wmurders %>% diff() %>% diff() %>%
+  ggtsdisplay()
+```
+
+### a.1) 
+By studying appropriate graphs of the series in R, find an appropriate ARIMA(p, d, q) model for these data.
+
+The appropriate ARIMA model is 1,1,1 for p,d,q, respectively.
+
+- AR(0) is appropriate as there is no exponential decay in ACF
+- D(2) is appropriate as 2 differences are required to quickly reduce ACF, D(1) has ACF decay too slowly
+- MA(1) is appropriate as there is a single significant spike in ACF and there is an element of expoential decay in PACF
+
+
+### a.2)
+Should you include a constant in the model? Explain.
+
+In this case no constant is required as d=2. Adding a constant would create a higher order trend which could be dangerous to the forecast accuracy.
+
+### a.3)
+Write this model in terms of the backshift operator.
+
+
+```{r}
+display_png(file="data/backshift.png")
+```
+
+### a.4)
+Fit the model using R and examine the residuals. Is the model satisfactory?
+
+Yes the model is satisfactory. Test of residuals show a normal distribution, both graphically and with the Ljung-Box test
+
+```{r}
+(fit <- Arima(wmurders, order=c(0,2,1)))
+```
+
+```{r}
+checkresiduals(fit)
+```
+
+### a.5)
+Forecast three times ahead. Check your forecasts by hand to make sure that you know how they have been calculated.
+
+```{r}
+forecast(fit,h=3)
+```
+
+### a.6)
+Create a plot of the series with forecasts and prediction intervals for the next three periods shown.
+
+```{r}
+autoplot(forecast(fit,h=3))
+```
+
+### a.7)
+Does auto.arima() give the same model you have chosen? If not, which model do you think is better?
+
+Auto Arima produces a similar model with ARIMA(1,2,1) but with a slightly lower AICc score of -6.39 vs -6.24 for the initial model. Therefore the Auto Arima model is slightly better.
+
+```{r}
+auto.arima(wmurders)
+```
+
+### B)
+
+#### usgdp
+
+Quarterly US GDP
+Description
+Quarterly US GDP. 1947:1 - 2006.1
+
+```{r}
+autoplot(usgdp)
+```
+
+```{r}
+(lambda <- BoxCox.lambda(usgdp))
+```
+
+### b.1)
+if necessary, find a suitable Box-Cox transformation for the data;
+
+```{r}
+usgdp %>% log() %>% diff(lag=4) %>% 
+    ggtsdisplay()
+```
+
+### b.2)
+fit a suitable ARIMA model to the transformed data using auto.arima();
+
+```{r}
+auto.arima(usgdp)
+```
+
+### b.3)
+try some other plausible models by experimenting with the orders chosen;
+
+```{r}
+(fit <- Arima(usgdp, order=c(3,2,1)))
+```
+
+```{r}
+(fit <- Arima(usgdp, order=c(2,2,2)))
+```
+
+### b.4)
+choose what you think is the best model and check the residual diagnostics;
+
+```{r}
+checkresiduals(fit)
+```
+
+### b.5)
+produce forecasts of your fitted model. Do the forecasts look reasonable?
+
+The forecast indeed looks reasonable
+
+```{r}
+autoplot(forecast(fit,h=24))
+```
+
+### b.6)
+compare the results with what you would obtain using ets() (with no transformation)
+
+The ETS forecast has a similar trend line but wider predicition inverval compared with the Arima model
+
+```{r}
+usgdp %>% ets() %>% forecast(h=24) %>% autoplot()
+```
+
+### C)
+
+#### usmelec
+
+Electricity monthly total net generation. January 1973 - June 2013.
+Description
+Electricity net generation measured in billions of kilowatt hours (kWh).
+
+Format
+Time series object of class ts.
+
+Source
+US Energy Information Administration.
+
+### c.1)
+Examine the 12-month moving average of this series to see what kind of trend is involved.
+
+```{r}
+# ma12.ts <- usmelec %>% ts(frequency =12)
+# autoplot(ma12.ts)
+autoplot(usmelec) +
+    autolayer(ma(usmelec,order=13),series="12mo MA",size=2)
+```
+
+### c.2)
+Do the data need transforming? If so, find a suitable transformation.
+
+```{r}
+lambda <- BoxCox.lambda(usmelec)
+transform_usmelec <- BoxCox(usmelec,lambda)
+autoplot(transform_usmelec)
+```
+
+```{r}
+lambda
+```
+
+### c.3)
+Are the data stationary? If not, find an appropriate differencing which yields stationary data
+
+```{r}
+usmelec %>% diff(lag=12) %>% diff(lag=2) %>% 
+    ggtsdisplay()
+```
+
+### c.4)
+Identify a couple of ARIMA models that might be useful in describing the time series. Which of your models is the best according to their AIC values?
+
+The following model produced the lowest AICc: "ARIMA(1,0,2)(1,0,1)(12)(lamdba=-0.573)"
+
+```{r}
+(fit <- auto.arima(usmelec))
+```
+
+```{r}
+(fit <- Arima(usmelec, order=c(1,0,2), seasonal=c(0,1,1),lambda=lambda))
+```
+
+### c.5)
+Estimate the parameters of your best model and do diagnostic testing on the residuals. Do the residuals resemble white noise? If not, try to find another ARIMA model which fits better.
+
+Residual distribution is normal however ACF spikes are near the white noise limit in several instances. Ljung-Box score is also below the p-value threshold and points to non-white noise. However this model had the best score of several tested and we could not find a better solution.
+
+```{r}
+checkresiduals(fit)
+```
+
+### c.6)
+Forecast the next 15 years of electricity generation by the U.S. electric industry. Get the latest figures from the EIA to check the accuracy of your forecasts.
+
+The model forecast had a slightly higher trend than actual but was nicely within the 80% prediction interval
+
+```{r}
+forecast(fit,h=180)
+```
+
+```{r}
+display_png(file="data/EIAelecgen.png")
+```
+
+### c.7)
+Eventually, the prediction intervals are so wide that the forecasts are not particularly useful. How many years of forecasts do you think are sufficiently accurate to be usable?
+
+Less than 5 years is the ideal forecast window. Any longer and the model will fail to take into account changes in consumer behavior, technology, government policy, etc
+
+```{r}
+autoplot(forecast(fit,h=180))
+```
+
+### D)
+
+#### austourists
+
+International Tourists to Australia: Total visitor nights.
+Description
+Quarterly visitor nights (in millions) spent by international tourists to Australia. 1999-2015.
+
+Format
+Quarterly time series of class ts.
+
+Source
+Tourism Research Australia.
+
+```{r}
+autoplot(austourists)
+```
+
+### d.1)
+Describe the time plot
+
+The plot describes international tourists entering Australia on a quarterly basis. The plot shows seasonal variability with a strong 4th quarter, combined with an upsloping trend.
+
+### d.2)
+What can you learn from the ACF and PACF graph?
+
+ACF shows gradual declining autocorrelations with strong spikes every 4th quarter. PACF shows spikes early in the series but after the 8th period partial autocorrelations are minimal.
+
+```{r}
+austourists %>% ggtsdisplay()
+```
+
+### d.3)
+Produce plots of the seasonally differenced data (1-<U+0001D435>4)<U+0001D44C><U+0001D461>. What model do these graphs suggest?;
+
+```{r}
+austourists %>% diff(lag=4) %>% 
+    ggtsdisplay()
+```
+
+```{r}
+(fit <- Arima(austourists, order=c(1,0,1), seasonal=c(1,1,0)))
+```
+
+```{r}
+checkresiduals(fit)
+```
+
+### d.4)
+Does auto.arima() give the same model that you chose? If not, which model do you think is better?
+
+Auto ARIMA gave a slightly different model with an improved with non-seasonal MA of 0 instead of 1. Both models have normal residuals and Ljung-Box scores. The Auto ARIMA AICc score was slightly improved, making it the better model.
+
+```{r}
+(auto <- auto.arima(austourists))
+```
+
+```{r}
+checkresiduals(auto)
+```
+
+### d.5)
+Write the model in terms of the backshift operator, then without using the backshift operator.
+
+This seems really complicated...
+
