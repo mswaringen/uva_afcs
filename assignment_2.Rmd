@@ -1,0 +1,232 @@
+---
+title: An R Markdown document converted from "assignment_2.ipynb"
+output: html_document
+---
+
+## AFCS Assignment 2
+
+```{r}
+library(hts)
+library(fpp2)
+library(urca)
+library("IRdisplay")
+
+# options(repr.plot.res = 0.75)
+```
+
+## Exercise 1.2
+
+## A)
+Generate 8-step-ahead bottom-up forecasts using ARIMA models for the visnights Australian domestic tourism data.
+
+```{r}
+visnights.hts <- hts(visnights, characters = c(3, 5))
+fcast_bu <- forecast(visnights.hts, h = 8, method = "bu", fmethod = "arima")
+```
+
+#### a.1)
+Plot the coherent forecasts by level and comment on their nature. Are you satisfied with these forecasts?
+
+Country-level (0) shows seasonality with a brief reduction in trend during 2010 after the global financial recession. State-level (1) shows normal seasonality across states, however WAU experienced a large positive change in trend starting in 2010. Zone-level (2) showed seasonality, at this level the amount of data makes it difficult to visually pick out unique features. I am satisfied with this graphical breakdown.
+
+```{r}
+plot(fcast_bu, levels = 0)
+title(main = "Level 0")
+```
+
+```{r}
+plot(fcast_bu, levels = 1)
+title(main = "Level 1")
+```
+
+```{r}
+plot(fcast_bu, levels = 2)
+title(main = "Level 2")
+```
+
+#### a.2)
+Model the aggregate series using an ARIMA model. Comment on the model. Generate and plot 8-step-ahead forecasts from the ARIMA model and compare these with the bottom-up forecasts generated in question 1.2.a.1 for the aggregate level.
+
+Both forecasts exhibit seasonality and an a positive trend, however the bottoms-up aggregate series forecasts are lower than the top-level forecast
+
+```{r}
+sum_visnights <- rowSums(visnights)
+visnights.ts <- ts(sum_visnights, 
+                         start = 1998, 
+                         frequency = 4)
+
+fcast_td <- forecast(auto.arima(visnights.ts),h=8)
+```
+
+```{r}
+fcast_bu.ts <- ts(
+  rowSums(fcast_bu$bts), 
+  start = 2017, 
+  frequency = 4)
+
+autoplot(fcast_td) + autolayer(fcast_bu.ts)
+```
+
+#### a.3)
+Generate 8-step-ahead optimally reconciled coherent forecasts using ARIMA base forecasts for the visnights Australian domestic tourism data. Plot the coherent forecasts by level and comment on their nature. How and why are these different to the bottom-up forecasts generated in question 1.2.a.1.
+
+One major difference is the optimially reconciled forecast had greater range for peaks compared with the bottom-up model.
+
+```{r}
+fcast_opt <- forecast(
+  visnights.hts, h = 8,
+  method = "comb", weights = "mint", covariance = "sam",
+  fmethod = "arima"
+)
+```
+
+```{r}
+plot(fcast_opt, levels = 0, col = "red")
+par(new = TRUE, xpd = TRUE)
+plot(fcast_bu, levels = 0, col = "blue")
+legend("bottomright", legend = c("Opt", "BU"), col = c("red", "blue"), lty = c(1, 1), bty = "n", cex = 0.5)
+```
+
+```{r}
+plot(fcast_opt, levels = 1)
+plot(fcast_bu, levels = 1)
+```
+
+```{r}
+plot(fcast_opt, levels = 2)
+plot(fcast_bu, levels = 2)
+```
+
+#### a.4)
+Using the last two years of the visnights Australian domestic tourism data as a test set, generate bottom-up, top-down and optimally reconciled forecasts for this period and compare their accuracy.
+
+Optimally reconciled forecasts have slighly lower erros compared with bottom-up
+
+```{r}
+visnights.hts.train <- window(visnights.hts, end=c(2014,4))
+visnights.hts.test <- window(visnights.hts, start=2015)
+```
+
+```{r}
+fcast_bu = forecast(
+  visnights.hts.train, h = 8, 
+  method = "bu", fmethod = "arima"
+  )
+
+fcast_opt = forecast(
+  visnights.hts.train, h = 8, 
+  method = "comb", weights = "wls", fmethod = "arima"
+  )
+```
+
+```{r}
+print(c("Bottom-up MAPE",mean(accuracy.gts(fcast_bu,visnights.hts.test)["MAPE",])))
+print(c("Bottom-up MASE",mean(accuracy.gts(fcast_bu,visnights.hts.test)["MASE",])))
+print(c("Optimal MAPE",mean(accuracy.gts(fcast_opt,visnights.hts.test)["MAPE",])))
+print(c("Optimal MASE",mean(accuracy.gts(fcast_opt,visnights.hts.test)["MASE",])))
+```
+
+## B)
+
+```{r}
+retaildata <- readxl::read_excel("data/retail.xlsx", skip=1)
+myts <- ts(retaildata[,"A3349873A"], frequency=12, start=c(1982,4))
+```
+
+### b.1)
+Check the residuals and produce forecasts.
+
+```{r}
+(tbats_fit <- tbats(myts))
+```
+
+```{r}
+checkresiduals(tbats_fit)
+```
+
+```{r}
+tbats_fit %>% forecast() %>% autoplot()
+```
+
+### b.2)
+Does this completely automated approach work for these data?
+
+The test of residuals show a non-normal distribution, both graphically and with the Ljung-Box test showing a p-value of 2.22e-15.
+
+### b.3)
+Have you saved any degrees of freedom by using Fourier terms rather than seasonal differencing?
+
+
+Yes, which gives the model more flexibility.
+
+## C
+Consider the weekly data on US finished motor gasoline products supplied (millions of barrels per day) (series gasoline):
+
+### c.1)
+Fit a TBATS model to these data.
+
+```{r}
+(fit <- tbats(gasoline))
+```
+
+### c.2)
+Check the residuals and produce forecasts.
+
+```{r}
+checkresiduals(fit)
+```
+
+```{r}
+fit %>% forecast(h=32) %>% autoplot()
+```
+
+### c.3)
+Could you model these data using any of the other methods we have considered so far (i.e., TSLM, ARIMA) so far?
+
+```{r}
+(fit <- auto.arima(gasoline))
+```
+
+```{r}
+checkresiduals(fit)
+```
+
+```{r}
+fit %>% forecast(h=32) %>% autoplot()
+```
+
+## D
+Experiment with using nnetar() on your Retail (use the same from 1.1.d) , gasoline and fancy data we have considered previously.
+
+```{r}
+(retail_nn <- nnetar(myts))
+```
+
+```{r}
+checkresiduals(retail_nn)
+```
+
+```{r}
+(gasoline_nn <- nnetar(gasoline))
+```
+
+```{r}
+checkresiduals(gasoline_nn)
+```
+
+### d.1)
+Plot different forecast horizon.
+
+```{r}
+retail_nn %>% forecast(PI=TRUE) %>% autoplot()
+```
+
+```{r}
+gasoline_nn %>% forecast(PI=TRUE) %>% autoplot()
+```
+
+### d.2)
+Elaborate and reflect your response on how the predictions seem using nnetar.
+
+nnetar predictions take signficantly longer to compute due to the nature of neural networks vs closed-form statistical solutions. The computational effort required further increases with the inclusion prediciton intervals which are created via numerous simulations.
+
